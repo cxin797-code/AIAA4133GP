@@ -29,7 +29,7 @@ from sentence_transformers import SentenceTransformer
 # ========== 配置 ==========
 LLM_MODEL = "qwen2.5:7b"          # 本地 Ollama 模型
 EMBED_MODEL = "all-MiniLM-L6-v2"  # 轻量嵌入模型（CPU 秒级推理）
-TOP_K = 3                          # 检索返回的文档片段数
+TOP_K = 6                         # 检索返回的文档片段数
 
 # ========== 1. 初始化组件 ==========
 print("[系统] 加载嵌入模型 ...")
