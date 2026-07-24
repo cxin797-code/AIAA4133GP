@@ -254,7 +254,7 @@ def main():
         rag.load_document(str(tmp))
 
     print("\n===== SecureRAG 模块化管道 =====")
-    print("输入问题问答；输入 'load <文件路径>' 入库新文档；'exit' 退出。\n")
+    print("输入问题问答；'load <路径>' 入库；'docs' 查看库内容；'delete <ID>' 删除；'clear' 清空；'exit' 退出。\n")
 
     while True:
         q = input("你: ").strip()
@@ -268,6 +268,28 @@ def main():
                 rag.load_document(path)
             else:
                 print("[入库] 文件不存在或不是 .txt 文件。")
+            continue
+        if q.lower() == "clear":
+            # 清空整个文档库
+            rag.chroma.delete_collection("docs")
+            rag.collection = rag.chroma.get_or_create_collection("docs")
+            print("[系统] 文档库已清空。")
+            continue
+        if q.lower() == "docs":
+            # 列出库中所有文档块（带 ID，方便定位）
+            all_docs = rag.collection.get()
+            for doc_id, text in zip(all_docs["ids"], all_docs["documents"]):
+                print(f"  {doc_id}: {text[:50]}...")
+            print(f"[系统] 共 {len(all_docs['ids'])} 个块。")
+            continue
+        if q.lower().startswith("delete "):
+            # 按 ID 删除指定块，如：delete doc_105
+            doc_id = q[7:].strip()
+            try:
+                rag.collection.delete(ids=[doc_id])
+                print(f"[系统] 已删除 {doc_id}，库中剩 {rag.collection.count()} 个块。")
+            except Exception as e:
+                print(f"[系统] 删除失败：{e}")
             continue
         print(f"AI: {rag.query(q)}\n")
 
