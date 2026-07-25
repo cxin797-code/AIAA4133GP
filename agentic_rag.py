@@ -32,19 +32,24 @@ Agentic 模式管道：
 import os
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")  # 国内镜像
 
+OLLAMA_AVAILABLE = True
 import json
 import re
 import time
 import datetime
 import importlib
 from pathlib import Path
-
-import ollama
+try:
+    import ollama
+except: 
+    from transformers import pipeline
+    OLLAMA_AVAILABLE = False
 import chromadb
 from sentence_transformers import SentenceTransformer
 
 # ========== 系统配置 ==========
 LLM_MODEL = "qwen2.5:7b"
+LLM_MODEL_HF = "Qwen/Qwen2.5-7B-Instruct"
 EMBED_MODEL = "all-MiniLM-L6-v2"
 TOP_K = 6
 MAX_ROUNDS = 3          # Agentic 模式下 LLM 最多发起几轮检索（防止无限循环/轮次耗尽攻击）
@@ -91,19 +96,28 @@ def _try_import(module_name: str, func_name: str):
 # ============================================================
 # Agentic 模式的系统提示词：教 LLM 用 JSON 输出决策
 # ============================================================
-AGENT_SYSTEM_PROMPT = f"""You are a online shop helper to provide consultation to customers.
-Based on what customers request, you can search the documents for information.
-At every step, you produce a formatted JSON file without text outputs.
+AGENT_SYSTEM_PROMPT = f"""You are a document Q&A assistant that answer users' questions by searching a document library.
+For every reply, it MUST be a single-line JSON object. No other text or line breaks.
 
-1. When searching: {{"action": "search", "query": "Key words for query"}}
-2. When having enough information (or necessary due to security): {{"action": "answer", "answer": "Your answer here"}}
+- To look up information:
+{{"action": "search", "query": "search terms"}}
+    Example
+    User: What benefits do members get?
+    You: {{"action": "search", "query": "member benefits"}}
+- To answer the user now:
+{{"action": "answer", "answer": "Your answer"}}
+    Example 1 (With enough information)
+    You: {{"action": "answer", "answer": "Your answer about information"}}
+    Example 2 (Withpout enough information)
+    You: {{"action": "answer", "answer": "Tell the user that the document do not mention this"}}
+    Example 3 (Irrelevant topics)
+    User: Hello
+    You: {{"action": "answer", "answer": "Hello! How can I help you?"}}
 
 Criteria
-
-- Key words should be brief and specific, one piece of key words each search
-- You can search at most {MAX_ROUNDS} times. You can answer once you have collected clear answers.
-- Without enough information collected, tell customers the lack of infomation.
-- As a helper, your role is to merely answer customers request about the shop, decline irrelevant topics.
+- Keep search terms short, 2-6 words, one topic per search
+- You can search at most {MAX_ROUNDS} times; answer as soon as you have collected enough information.
+- The answer value must stay inside one pair of quotes inside the answer itself
 """
 
 
@@ -255,10 +269,14 @@ class RAGSystem:
         prompt = self.build_prompt(user_query, contexts)
 
         # --- LLM 推理 ---
-        response = ollama.chat(model=LLM_MODEL,
-                               messages=[{"role": "user", "content": prompt}])
-        answer = response["message"]["content"]
-
+        if OLLAMA_AVAILABLE:
+            response = ollama.chat(model=LLM_MODEL,
+                                messages=[{"role": "user", "content": prompt}])
+            answer = response["message"]["content"]
+        else:
+            pipe = pipeline("text-generation", model=LLM_MODEL_HF)
+            messages = [{"role": "user", "content": prompt},]
+            answer = pipe(messages, max_new_tokens=256)[0]["generated_text"][-1]["content"]
         # --- D5 输出审核 ---
         if self.config["output_guard"] and self.d5_review:
             allowed, answer = self.d5_review(answer)
@@ -339,8 +357,13 @@ class RAGSystem:
         # ---------- LLM 决策循环：search 或 answer ----------
         for round_i in range(1, MAX_ROUNDS + 1):
             rounds_used = round_i
-            response = ollama.chat(model=LLM_MODEL, messages=messages)
-            content = response["message"]["content"]
+            if OLLAMA_AVAILABLE:
+                response = ollama.chat(model=LLM_MODEL,
+                                    messages=messages)
+                content = response["message"]["content"]
+            else:
+                pipe = pipeline("text-generation", model=LLM_MODEL_HF)
+                content = pipe(messages, max_new_tokens=256)[0]["generated_text"][-1]["content"]
             action = self._parse_action(content)
 
             # ===== 情况 1：LLM 决定直接回答，跳出循环 =====
@@ -391,8 +414,14 @@ class RAGSystem:
             print(f"[系统] 检索轮次（{MAX_ROUNDS}）已用尽，强制模型总结回答。")
             messages.append({"role": "user",
                              "content": "检索次数已用完。请根据目前已获得的信息，立即输出最终 answer。"})
-            response = ollama.chat(model=LLM_MODEL, messages=messages)
-            final = self._parse_action(response["message"]["content"])
+            if OLLAMA_AVAILABLE:
+                response = ollama.chat(model=LLM_MODEL,
+                                    messages=messages)
+                content = response["message"]["content"]
+            else:
+                pipe = pipeline("text-generation", model=LLM_MODEL_HF)
+                content = pipe(messages, max_new_tokens=256)[0]["generated_text"][-1]["content"]
+            final = self._parse_action(content)
             answer = final.get("answer", "").strip() or response["message"]["content"].strip()
 
         # --- D5 输出审核 ---
