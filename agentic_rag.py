@@ -30,6 +30,7 @@ Run: python agentic_rag.py
 import os
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_AVAILABLE = True
 import json
 import re
@@ -39,9 +40,11 @@ import importlib
 from pathlib import Path
 try:
     import ollama
+    _OLLAMA_CLIENT = ollama.Client(host=OLLAMA_HOST)
 except Exception:
     from transformers import AutoTokenizer, AutoModelForCausalLM
     OLLAMA_AVAILABLE = False
+    _OLLAMA_CLIENT = None
 import chromadb
 from sentence_transformers import SentenceTransformer
 
@@ -77,8 +80,17 @@ def hf_pipeline(messages):
 def _llm_chat(messages) -> str:
     """Call the configured LLM backend; return assistant message text."""
     if OLLAMA_AVAILABLE:
-        response = ollama.chat(model=LLM_MODEL, messages=messages)
-        return response["message"]["content"]
+        try:
+            response = _OLLAMA_CLIENT.chat(model=LLM_MODEL, messages=messages)
+            return response["message"]["content"]
+        except Exception as e:
+            raise ConnectionError(
+                f"Failed to connect to Ollama at {OLLAMA_HOST}. "
+                f"Please check that Ollama is running and accessible. "
+                f"If Ollama is on a different host/port, set the OLLAMA_HOST "
+                f"environment variable (e.g., OLLAMA_HOST=http://localhost:11434). "
+                f"Original error: {type(e).__name__}: {e}"
+            ) from e
     return hf_pipeline(messages)
 
 
@@ -159,6 +171,17 @@ class RAGSystem:
         self.config = {**DEFAULT_CONFIG, **{k: v for k, v in raw.items() if k in DEFAULT_CONFIG}}
         print("[System] Mode: Agentic (LLM-driven retrieval + add_order)")
         print(f"[System] Defense switches: {self._config_summary()}")
+
+        if OLLAMA_AVAILABLE:
+            print(f"[System] LLM backend: Ollama @ {OLLAMA_HOST} (model={LLM_MODEL})")
+            # Quick connectivity check so the user gets a clear message early
+            try:
+                _OLLAMA_CLIENT.list()
+            except Exception as e:
+                print(f"[System] WARNING: Cannot reach Ollama at {OLLAMA_HOST} ({e})")
+                print("[System]          Make sure 'ollama serve' is running, or set OLLAMA_HOST env var.")
+        else:
+            print(f"[System] LLM backend: local HF model ({LLM_MODEL_HF})")
 
         print("[System] Loading embedding model ...")
         self.embedder = SentenceTransformer(EMBED_MODEL)
