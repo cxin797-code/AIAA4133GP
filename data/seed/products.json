@@ -1,0 +1,178 @@
+[
+  {
+    "sku": "MUG-001",
+    "name": "Ceramic Custom Mug",
+    "description": "12oz ceramic mug with dishwasher-safe glaze; ideal for logos or short engraving.",
+    "price": 49.0,
+    "customizable": true,
+    "customization_options": "Engraving text up to 24 chars; left/right handle; gift box wrap"
+  },
+  {
+    "sku": "TEE-101",
+    "name": "Organic Cotton Tee",
+    "description": "Unisex mid-weight cotton tee available in multiple sizes and colors.",
+    "price": 89.0,
+    "customizable": true,
+    "customization_options": "Size XS-XXL; color; front print text up to 20 chars"
+  },
+  {
+    "sku": "TEE-102",
+    "name": "Performance Sport Tee",
+    "description": "Moisture-wicking athletic tee for gym and outdoor use.",
+    "price": 119.0,
+    "customizable": false,
+    "customization_options": ""
+  },
+  {
+    "sku": "BAG-201",
+    "name": "Canvas Tote Bag",
+    "description": "Heavy-duty canvas tote with reinforced handles for daily carry.",
+    "price": 69.0,
+    "customizable": true,
+    "customization_options": "One-side print; monogram up to 3 letters"
+  },
+  {
+    "sku": "BAG-202",
+    "name": "Travel Duffel 40L",
+    "description": "Water-resistant duffel with shoe compartment and shoulder strap.",
+    "price": 259.0,
+    "customizable": false,
+    "customization_options": ""
+  },
+  {
+    "sku": "BOT-301",
+    "name": "Insulated Steel Bottle 500ml",
+    "description": "Double-wall vacuum bottle keeps drinks cold for 24h or hot for 12h.",
+    "price": 129.0,
+    "customizable": true,
+    "customization_options": "Laser engraving name; color: silver/black/blue"
+  },
+  {
+    "sku": "BOT-302",
+    "name": "Glass Infuser Bottle",
+    "description": "Borosilicate glass bottle with removable fruit infuser basket.",
+    "price": 79.0,
+    "customizable": false,
+    "customization_options": ""
+  },
+  {
+    "sku": "NBK-401",
+    "name": "Hardcover Notebook A5",
+    "description": "192-page dotted notebook with elastic band and inner pocket.",
+    "price": 45.0,
+    "customizable": true,
+    "customization_options": "Cover foil stamp; name up to 16 chars"
+  },
+  {
+    "sku": "NBK-402",
+    "name": "Planner 2026",
+    "description": "Weekly planner with monthly overview and sticker sheet.",
+    "price": 59.0,
+    "customizable": false,
+    "customization_options": ""
+  },
+  {
+    "sku": "PHN-501",
+    "name": "Phone Case Clear Soft",
+    "description": "Shock-absorbing clear case compatible with major phone models.",
+    "price": 39.0,
+    "customizable": true,
+    "customization_options": "Model fit; rear photo print or short caption"
+  },
+  {
+    "sku": "PHN-502",
+    "name": "MagSafe Wallet Clip",
+    "description": "Slim MagSafe card holder for two cards.",
+    "price": 99.0,
+    "customizable": false,
+    "customization_options": ""
+  },
+  {
+    "sku": "LMP-601",
+    "name": "Desk LED Lamp",
+    "description": "Adjustable LED desk lamp with three brightness levels and USB-C power.",
+    "price": 159.0,
+    "customizable": false,
+    "customization_options": ""
+  },
+  {
+    "sku": "KEY-701",
+    "name": "Mechanical Keyboard 75%",
+    "description": "Hot-swap mechanical keyboard with RGB backlight and PBT keycaps.",
+    "price": 499.0,
+    "customizable": true,
+    "customization_options": "Switch type; keycap legend language; engraved badge"
+  },
+  {
+    "sku": "MSE-702",
+    "name": "Wireless Mouse Pro",
+    "description": "Ergonomic wireless mouse with silent clicks and multi-device pairing.",
+    "price": 189.0,
+    "customizable": false,
+    "customization_options": ""
+  },
+  {
+    "sku": "CUP-801",
+    "name": "Espresso Cup Set",
+    "description": "Set of two porcelain espresso cups with matching saucers.",
+    "price": 88.0,
+    "customizable": true,
+    "customization_options": "Initials on saucer; gift packaging"
+  },
+  {
+    "sku": "HOD-901",
+    "name": "Fleece Hoodie",
+    "description": "Mid-weight fleece hoodie with kangaroo pocket.",
+    "price": 199.0,
+    "customizable": true,
+    "customization_options": "Size S-XXL; sleeve print text up to 12 chars"
+  },
+  {
+    "sku": "CAP-902",
+    "name": "Structured Baseball Cap",
+    "description": "Adjustable cotton cap with curved brim.",
+    "price": 59.0,
+    "customizable": true,
+    "customization_options": "Front embroidery up to 10 chars; color"
+  },
+  {
+    "sku": "PIL-1001",
+    "name": "Memory Foam Travel Pillow",
+    "description": "Compact travel pillow with washable cover.",
+    "price": 109.0,
+    "customizable": false,
+    "customization_options": ""
+  },
+  {
+    "sku": "CND-1101",
+    "name": "Soy Wax Candle",
+    "description": "Hand-poured soy candle with cotton wick; burns about 35 hours.",
+    "price": 72.0,
+    "customizable": true,
+    "customization_options": "Scent; lid engraving short message"
+  },
+  {
+    "sku": "FRM-1201",
+    "name": "Wood Photo Frame 5x7",
+    "description": "Solid wood photo frame with standing and wall mount options.",
+    "price": 55.0,
+    "customizable": true,
+    "customization_options": "Engraved caption on frame bottom"
+  },
+  {
+    "sku": "PEN-1301",
+    "name": "Metal Gel Pen Set",
+    "description": "Set of three metal gel pens with refill pack.",
+    "price": 35.0,
+    "customizable": true,
+    "customization_options": "Name engraving on barrel"
+  },
+  {
+    "sku": "UMBR-1401",
+    "name": "Compact Travel Umbrella",
+    "description": "Wind-resistant compact umbrella fitting in a backpack side pocket.",
+    "price": 65.0,
+    "customizable": false,
+    "customization_options": ""
+  }
+]

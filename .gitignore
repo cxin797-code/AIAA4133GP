@@ -1,0 +1,10 @@
+# Generated runtime data
+data/shop.db
+data/shop.db-*
+logs/
+experiments/results/
+config.json
+__pycache__/
+*.pyc
+.venv/
+venv/
