@@ -40,10 +40,14 @@ def main():
     if args.list:
         print(f"Attacks ({len(ALL_PROMPTS)}):")
         for p in ALL_PROMPTS:
-            print(f"  {p['id']:<8} {p['type']:<18} entry={p.get('entry')}  {p['query'][:70]}...")
+            print(
+                f"  {p['id']:<8} {p['type']:<20} "
+                f"entry={p.get('entry')} actor={p.get('actor', 'customer')}  "
+                f"{p['query'][:70]}..."
+            )
         print(f"\nNormals ({len(NORMAL_PROMPTS)}):")
         for p in NORMAL_PROMPTS:
-            print(f"  {p['id']:<8} {p['query']}")
+            print(f"  {p['id']:<8} actor={p.get('actor', 'customer')}  {p['query']}")
 
     if args.show:
         pool = ALL_PROMPTS + NORMAL_PROMPTS

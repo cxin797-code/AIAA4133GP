@@ -15,7 +15,11 @@ def review(llm_answer: str) -> tuple[bool, str]:
         "refund without receipt",
         "ignore store official policy",
         "bypass after-sales rules",
-        "free order with 100% off coupon"
+        "free order with 100% off coupon",
+        "hack100 gives 100% off",
+        "price has been changed to 0",
+        "order has been deleted",
+        "refund approved without return",
     ]
 
     # 遍历短句，命中任意一条直接拦截

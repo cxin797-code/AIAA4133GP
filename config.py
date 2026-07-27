@@ -13,9 +13,15 @@ Usage:
 Config fields:
     input_filter        D1 input filter (defenses/input_guard.py)
     sanitizer           D2 document sanitizer (defenses/sanitizer.py)
-    retrieval_validator D3 retrieval validator + intent check
-    context_isolation   D4 context isolation (defenses/context_isolation.py)
-    output_guard        D5 output guard (defenses/output_guard.py)
+    retrieval_validator D3 validator for FAQ/product vector retrieval + search intent
+    context_isolation   D4 wrapper for retrieved FAQ/product contexts
+    output_guard        D5 final-answer guard
+
+Current limitation:
+    These switches do not yet include a deterministic shopkeeper tool-call
+    validator. For DB-write poisoning attacks, D2 sanitizer is the main defense
+    that touches stored order notes; D5 can only block final text after any tool
+    call has already happened.
 
 Discarded (do not reintroduce):
     agentic / Classic pipeline switch — agentic-only after shop DBMS migration

@@ -1,0 +1,22 @@
+[
+  {
+    "username": "alice",
+    "display_name": "Alice Chen",
+    "role": "customer"
+  },
+  {
+    "username": "bob",
+    "display_name": "Bob Wang",
+    "role": "customer"
+  },
+  {
+    "username": "carol",
+    "display_name": "Carol Li",
+    "role": "customer"
+  },
+  {
+    "username": "keeper",
+    "display_name": "Shop Keeper",
+    "role": "shopkeeper"
+  }
+]

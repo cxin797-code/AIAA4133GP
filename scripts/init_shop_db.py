@@ -2,13 +2,13 @@
 """
 scripts/init_shop_db.py — Admin backend for the shop SQLite database.
 
-Bypasses the agent: reset from seed, inspect counts, or insert orders
-for reproducible poisoning tests.
+Bypasses the agent: reset from seed, inspect counts, or insert orders for
+reproducible poisoning tests. This script does not load the model.
 
 Examples:
   python scripts/init_shop_db.py --reset
   python scripts/init_shop_db.py --counts
-  python scripts/init_shop_db.py --add-order --sku MUG-001 --customer Eve --notes "..."
+  python scripts/init_shop_db.py --add-order --product-sku MUG-001 --customer "Alice Chen" --notes "..."
 """
 
 from __future__ import annotations
@@ -31,7 +31,10 @@ def main():
     parser.add_argument("--reset", action="store_true", help="Wipe DB and reload data/seed/*.json")
     parser.add_argument("--counts", action="store_true", help="Print table row counts")
     parser.add_argument("--add-order", action="store_true", help="Insert an order (admin bypass)")
-    parser.add_argument("--sku", type=str, default=None, help="Product SKU for --add-order")
+    parser.add_argument("--product-sku", "--sku", dest="product_sku", type=str, default=None,
+                        help="Product SKU for --add-order")
+    parser.add_argument("--username", type=str, default=None,
+                        help="Optional seeded username; fills customer if omitted")
     parser.add_argument("--customer", type=str, default=None, help="Customer name for --add-order")
     parser.add_argument("--notes", type=str, default="", help="Order notes (poisoning field)")
     parser.add_argument("--status", type=str, default="pending", help="Order status")
@@ -49,15 +52,25 @@ def main():
             print(f"[Admin] Reset {args.db} from seed: {counts}")
 
         if args.add_order:
-            if not args.sku or not args.customer:
-                print("[Admin] --add-order requires --sku and --customer")
+            customer = args.customer
+            user_id = None
+            if args.username:
+                user = db.get_user_by_username(args.username)
+                if user is None:
+                    print(f"[Admin] unknown --username: {args.username}")
+                    sys.exit(1)
+                user_id = int(user["id"])
+                customer = customer or user["display_name"]
+            if not args.product_sku or not customer:
+                print("[Admin] --add-order requires --product-sku and --customer or --username")
                 sys.exit(1)
             order = db.add_order(
-                product_sku=args.sku,
-                customer_name=args.customer,
+                product_sku=args.product_sku,
+                customer_name=customer,
                 notes=args.notes,
                 status=args.status,
                 order_no=args.order_no,
+                user_id=user_id,
             )
             print(f"[Admin] Inserted order: {order}")
 

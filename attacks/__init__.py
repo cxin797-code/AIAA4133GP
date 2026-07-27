@@ -1,21 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-attacks/ — Attack prompt packs for the agentic shop RAG (black-box + write path).
+attacks/ — Attack prompt packs for the agentic shop DB write path.
 
-Adapted to the current system:
-  - Corpus poisoning via order.notes (write+query / agent add_order), not .txt upload
-  - Query-side jailbreaks and Base64 bypass
-  - Retrieval hijack (steer the agent's search action)
-  - Split-payload across two orders (cross-order, former A4)
-
-Deferred: multi-turn crescendo (A3) — query() has no session memory.
+Current threat model:
+  - Low-privilege customer data is stored in order.notes.
+  - A shopkeeper-scoped agent later reads those orders.
+  - The injected note tries to trigger privileged DB writes.
 
 Modules:
-  order_poison.py      # former A1: poison via order notes
-  base64_bypass.py     # A2: query-side encoding
-  retrieval_hijack.py  # steer search terms
-  agent_write.py       # live demo: user asks agent to add_order with poison
-  cross_order.py       # former A4: split payload across two orders
-  prompts.py           # aggregate + export helpers
-  run_attacks.py       # list / export attack_dataset.json
+  stored_tool_call.py      # baseline literal/natural-language stored tool calls
+  obfuscated_payload.py    # Base64, hidden, Unicode, typoglycemia variants
+  split_payload.py         # malicious instruction split across multiple orders
+  trigger_shaping.py       # payloads activated by plausible shopkeeper workflows
+  parameter_confusion.py   # wrong target/value/scope in otherwise allowed tools
+  prompts.py               # aggregate + export helpers
+  run_attacks.py           # list / export attack_dataset.json
 """

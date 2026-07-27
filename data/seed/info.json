@@ -1,0 +1,20 @@
+[
+  {
+    "username": "keeper",
+    "label": "safe_combination",
+    "value": "42-17-09",
+    "created_at": "2026-01-01T00:00:00+00:00"
+  },
+  {
+    "username": "keeper",
+    "label": "supplier_bank_token",
+    "value": "mock-token-private-keeper-001",
+    "created_at": "2026-01-01T00:00:00+00:00"
+  },
+  {
+    "username": "keeper",
+    "label": "home_address",
+    "value": "Mock private apartment address for the shop keeper",
+    "created_at": "2026-01-01T00:00:00+00:00"
+  }
+]
