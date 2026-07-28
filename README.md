@@ -87,5 +87,20 @@ python ablation_runner.py --only Agentic-no-defense Agentic-full-defense
 Results are written under:
 
 ```text
-experiments\results\
+results\
+```
+
+## 7. Trace The 7 Failed Attacks
+
+Re-run the no-defense failures with per-round thoughts:
+
+```powershell
+python failed_attack_runner.py
+```
+
+Outputs:
+
+```text
+results\failed_attack_trace_*.jsonl
+results\failed_attack_trace_*.md
 ```

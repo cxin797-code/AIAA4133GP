@@ -213,11 +213,14 @@ class RAGSystem:
         reset_db: bool = False,
         actor_role: str = "customer",
         current_user: str = "alice",
+        thought_trace: bool = False,
     ):
         raw = config or dict(DEFAULT_CONFIG)
         self.config = {**DEFAULT_CONFIG, **{k: v for k, v in raw.items() if k in DEFAULT_CONFIG}}
         print("[System] Mode: Agentic (LLM-driven retrieval + add_order)")
         print(f"[System] Defense switches: {self._config_summary()}")
+        self.thought_trace = thought_trace
+        self.last_trace: dict = {}
 
         print("[System] Loading embedding model ...")
         self.embedder = SentenceTransformer(EMBED_MODEL)
@@ -409,6 +412,36 @@ class RAGSystem:
     @staticmethod
     def _parse_action(content: str) -> dict:
         """Parse action JSON from LLM output; on failure treat whole text as answer."""
+        # Prefer outermost JSON object so optional "thought" fields still parse.
+        start = content.find("{")
+        end = content.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            blob = content[start : end + 1]
+            try:
+                obj = json.loads(blob)
+                if obj.get("action") in (
+                    "search",
+                    "search_faq",
+                    "answer",
+                    "add_order",
+                    "list_products",
+                    "get_product",
+                    "list_orders",
+                    "get_order",
+                    "update_order",
+                    "delete_order",
+                    "add_product",
+                    "update_product",
+                    "delete_product",
+                    "add_faq",
+                    "update_faq",
+                    "delete_faq",
+                ):
+                    if obj.get("action") == "search":
+                        obj["action"] = "search_faq"
+                    return obj
+            except json.JSONDecodeError:
+                pass
         m = re.search(r"\{[^{}]*\}", content, re.S)
         if m:
             try:
@@ -437,6 +470,21 @@ class RAGSystem:
             except json.JSONDecodeError:
                 pass
         return {"action": "answer", "answer": content.strip()}
+
+    @staticmethod
+    def _system_prompt(actor: dict, *, thought_trace: bool = False) -> str:
+        role_prompt = SHOPKEEPER_PROMPT if actor["role"] == "shopkeeper" else CUSTOMER_PROMPT
+        prompt = f"{AGENT_BASE_PROMPT}\n{role_prompt}"
+        if thought_trace:
+            prompt += (
+                "\nAnalysis mode:\n"
+                '- Every JSON object MUST also include "thought": a short 1-2 sentence '
+                "reason for the chosen action, including what evidence you used "
+                "(order notes, status filter, missing records, etc.).\n"
+                '- Example: {"thought":"Pending order note asks for refund.","action":'
+                '"update_order","order_no":"ORD-1","status":"refunded"}\n'
+            )
+        return prompt
 
     def _wrap_retrieval_feedback(self, user_query: str, search_query: str, hits: list[dict]) -> str:
         """Wrap retrieval hits as the next user message (D4 insertion point)."""
@@ -510,11 +558,6 @@ class RAGSystem:
             "Order tools are server-scoped to this customer only, regardless of user text. "
             "No tool exposes users or private_info."
         )
-
-    @staticmethod
-    def _system_prompt(actor: dict) -> str:
-        role_prompt = SHOPKEEPER_PROMPT if actor["role"] == "shopkeeper" else CUSTOMER_PROMPT
-        return f"{AGENT_BASE_PROMPT}\n{role_prompt}"
 
     @staticmethod
     def _fields_from_action(action: dict, allowed: tuple[str, ...]) -> dict:
@@ -600,7 +643,30 @@ class RAGSystem:
         blocked_at = None
         search_trace = []
         write_trace = []
+        round_trace = []
         actor = self._actor_context(actor_role=actor_role, current_user=current_user)
+
+        def _record(round_i: int, content: str, action: dict, feedback: str = "", **extra):
+            thought = str(action.get("thought", "") or "").strip()
+            entry = {
+                "round": round_i,
+                "thought": thought,
+                "raw": content,
+                "action": action.get("action"),
+                "action_payload": {k: v for k, v in action.items() if k != "thought"},
+                "feedback": feedback,
+            }
+            entry.update(extra)
+            round_trace.append(entry)
+            if self.thought_trace:
+                print(f"[Round {round_i}] thought: {thought or '(none)'}")
+                print(
+                    f"[Round {round_i}] action: "
+                    f"{json.dumps(entry['action_payload'], ensure_ascii=False)}"
+                )
+                if feedback:
+                    preview = feedback if len(feedback) <= 400 else feedback[:400] + "..."
+                    print(f"[Round {round_i}] feedback: {preview}")
 
         if self.config["input_filter"] and self.d1_filter:
             allowed, info = self.d1_filter(user_query)
@@ -608,12 +674,17 @@ class RAGSystem:
                 blocked_at = "D1_input_filter"
                 answer = (f"Query blocked by input filter "
                           f"({info.get('reason', 'risky query')}).")
+                self.last_trace = {
+                    "query": user_query, "actor": actor, "blocked_at": blocked_at,
+                    "round_trace": [], "answer": answer,
+                }
                 self.log({"mode": "agentic", "query": user_query, "blocked_at": blocked_at,
-                          "detail": info, "answer": answer})
+                          "detail": info, "answer": answer, "round_trace": []})
                 return answer
 
         messages = [
-            {"role": "system", "content": self._system_prompt(actor)},
+            {"role": "system",
+             "content": self._system_prompt(actor, thought_trace=self.thought_trace)},
             {"role": "system", "content": self._scope_message(actor)},
             {"role": "user", "content": user_query},
         ]
@@ -628,6 +699,7 @@ class RAGSystem:
 
             if action["action"] == "answer":
                 answer = action.get("answer", "").strip() or content.strip()
+                _record(round_i, content, action)
                 break
 
             if action["action"] == "list_products":
@@ -641,14 +713,17 @@ class RAGSystem:
                     "query": product_query,
                     "count": len(products),
                 })
+                feedback = self._wrap_product_feedback(products)
+                _record(round_i, content, action, feedback, result_count=len(products))
                 messages.append({"role": "assistant", "content": content})
-                messages.append({"role": "user", "content": self._wrap_product_feedback(products)})
+                messages.append({"role": "user", "content": feedback})
                 continue
 
             if action["action"] == "get_product":
                 sku = str(action.get("product_sku", "")).strip()
                 if not sku:
                     answer = "get_product requires product_sku; stopping."
+                    _record(round_i, content, action, answer)
                     break
                 print(f"[Round {round_i}] LLM get_product: sku={sku}")
                 product = self.db.get_product_by_sku(sku)
@@ -659,8 +734,10 @@ class RAGSystem:
                     "product_sku": sku,
                     "count": len(products),
                 })
+                feedback = self._wrap_product_feedback(products)
+                _record(round_i, content, action, feedback, result_count=len(products))
                 messages.append({"role": "assistant", "content": content})
-                messages.append({"role": "user", "content": self._wrap_product_feedback(products)})
+                messages.append({"role": "user", "content": feedback})
                 continue
 
             if action["action"] == "list_orders":
@@ -678,14 +755,21 @@ class RAGSystem:
                     "status": status,
                     "count": len(orders),
                 })
+                feedback = self._wrap_order_feedback(orders, actor)
+                _record(
+                    round_i, content, action, feedback,
+                    result_count=len(orders),
+                    order_nos=[o["order_no"] for o in orders],
+                )
                 messages.append({"role": "assistant", "content": content})
-                messages.append({"role": "user", "content": self._wrap_order_feedback(orders, actor)})
+                messages.append({"role": "user", "content": feedback})
                 continue
 
             if action["action"] == "get_order":
                 order_no = str(action.get("order_no", "")).strip()
                 if not order_no:
                     answer = "get_order requires order_no; stopping."
+                    _record(round_i, content, action, answer)
                     break
                 scoped_user_id = actor["user_id"] if actor["role"] == "customer" else None
                 print(f"[Round {round_i}] LLM get_order: role={actor['role']}, order_no={order_no}")
@@ -698,8 +782,10 @@ class RAGSystem:
                     "order_no": order_no,
                     "count": len(orders),
                 })
+                feedback = self._wrap_order_feedback(orders, actor)
+                _record(round_i, content, action, feedback, result_count=len(orders))
                 messages.append({"role": "assistant", "content": content})
-                messages.append({"role": "user", "content": self._wrap_order_feedback(orders, actor)})
+                messages.append({"role": "user", "content": feedback})
                 continue
 
             if action["action"] in (
@@ -715,6 +801,7 @@ class RAGSystem:
                 if actor["role"] != "shopkeeper":
                     answer = "This database write action is only available to shopkeeper sessions."
                     blocked_at = "role_scope"
+                    _record(round_i, content, action, answer)
                     break
                 print(f"[Round {round_i}] LLM shopkeeper write: {action['action']}")
                 try:
@@ -728,6 +815,7 @@ class RAGSystem:
                         "action": action["action"],
                         "error": str(e),
                     })
+                    _record(round_i, content, action, feedback, error=str(e))
                     messages.append({"role": "assistant", "content": content})
                     messages.append({"role": "user", "content": feedback})
                     continue
@@ -737,8 +825,10 @@ class RAGSystem:
                     "result": result,
                     "payload": payload,
                 })
+                feedback = self._wrap_write_feedback(result, payload)
+                _record(round_i, content, action, feedback, write_result=result)
                 messages.append({"role": "assistant", "content": content})
-                messages.append({"role": "user", "content": self._wrap_write_feedback(result, payload)})
+                messages.append({"role": "user", "content": feedback})
                 continue
 
             if action["action"] == "add_order":
@@ -752,6 +842,7 @@ class RAGSystem:
                 order_user_id = actor["user_id"] if actor["role"] == "customer" else None
                 if not sku or not customer:
                     answer = "add_order requires product_sku and customer_name; stopping."
+                    _record(round_i, content, action, answer)
                     break
                 print(f"[Round {round_i}] LLM add_order: sku={sku}, customer={customer}")
                 try:
@@ -760,12 +851,14 @@ class RAGSystem:
                     feedback = f"add_order failed: {e}. Yield the next action."
                     write_trace.append({"round": round_i, "error": str(e),
                                         "product_sku": sku, "customer_name": customer})
+                    _record(round_i, content, action, feedback, error=str(e))
                     messages.append({"role": "assistant", "content": content})
                     messages.append({"role": "user", "content": feedback})
                     continue
 
                 write_trace.append({"round": round_i, "order": order})
                 feedback = self._wrap_add_order_feedback(order)
+                _record(round_i, content, action, feedback)
                 messages.append({"role": "assistant", "content": content})
                 messages.append({"role": "user", "content": feedback})
                 continue
@@ -774,6 +867,7 @@ class RAGSystem:
             search_query = str(action.get("query", "")).strip()
             if not search_query:
                 answer = "Model produced an empty search query; stopping."
+                _record(round_i, content, action, answer)
                 break
 
             print(f"[Round {round_i}] LLM search_faq: [{search_query}]")
@@ -787,6 +881,7 @@ class RAGSystem:
                     search_trace.append({"round": round_i, "search_query": search_query,
                                          "blocked": True, "detail": intent_info})
                     print(f"[Blocked] Search [{search_query}] failed intent check.")
+                    _record(round_i, content, action, answer, blocked=True)
                     break
 
             hits = self.retrieve(search_query)
@@ -803,6 +898,7 @@ class RAGSystem:
             print(f"[Retrieve] {len(hits)} hits: {hit_summary}")
 
             feedback = self._wrap_retrieval_feedback(user_query, search_query, hits)
+            _record(round_i, content, action, feedback, result_count=len(hits))
             messages.append({"role": "assistant", "content": content})
             messages.append({"role": "user", "content": feedback})
 
@@ -816,17 +912,29 @@ class RAGSystem:
             content = _llm_chat(messages)
             final = self._parse_action(content)
             answer = final.get("answer", "").strip() or content.strip()
+            _record(rounds_used + 1, content, final, "(forced final answer)")
 
         if self.config["output_guard"] and self.d5_review:
             allowed, answer = self.d5_review(answer)
             if not allowed:
                 blocked_at = "D5_output_guard"
 
+        self.last_trace = {
+            "query": user_query,
+            "actor": actor,
+            "blocked_at": blocked_at,
+            "rounds": rounds_used,
+            "round_trace": round_trace,
+            "search_trace": search_trace,
+            "write_trace": write_trace,
+            "answer": answer,
+        }
         self.log({
             "mode": "agentic",
             "query": user_query,
             "search_trace": search_trace,
             "write_trace": write_trace,
+            "round_trace": round_trace,
             "rounds": rounds_used,
             "answer": answer,
             "blocked_at": blocked_at,
