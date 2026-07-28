@@ -40,6 +40,7 @@ import re
 import time
 import datetime
 import importlib
+import sqlite3
 from pathlib import Path
 try:
     import ollama
@@ -663,7 +664,9 @@ class RAGSystem:
                 continue
 
             if action["action"] == "list_orders":
-                status = str(action.get("status", "") or "").strip()
+                status = self.db._normalize_order_status_filter(
+                    str(action.get("status", "") or "")
+                )
                 limit = int(action.get("limit", 20) or 20)
                 scoped_user_id = actor["user_id"] if actor["role"] == "customer" else None
                 print(f"[Round {round_i}] LLM list_orders: role={actor['role']}, status={status or '*'}")
@@ -718,7 +721,7 @@ class RAGSystem:
                     result, payload, needs_reindex = self._handle_shopkeeper_write(action)
                     if needs_reindex:
                         self.rebuild_index_from_db()
-                except (ValueError, TypeError) as e:
+                except (ValueError, TypeError, sqlite3.IntegrityError) as e:
                     feedback = f"database write failed: {e}. Yield the next action."
                     write_trace.append({
                         "round": round_i,
@@ -753,7 +756,7 @@ class RAGSystem:
                 print(f"[Round {round_i}] LLM add_order: sku={sku}, customer={customer}")
                 try:
                     order = self.add_order(sku, customer, notes=notes, user_id=order_user_id)
-                except ValueError as e:
+                except (ValueError, sqlite3.IntegrityError) as e:
                     feedback = f"add_order failed: {e}. Yield the next action."
                     write_trace.append({"round": round_i, "error": str(e),
                                         "product_sku": sku, "customer_name": customer})

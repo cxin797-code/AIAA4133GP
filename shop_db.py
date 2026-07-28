@@ -267,12 +267,17 @@ class ShopDB:
         customizable: bool = False,
         customization_options: str = "",
     ) -> dict[str, Any]:
-        self.conn.execute(
-            "INSERT INTO products (sku, name, description, price, customizable, customization_options) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (sku, name, description, float(price), 1 if customizable else 0, customization_options or ""),
-        )
-        self.conn.commit()
+        if not sku:
+            raise ValueError("add_product requires sku")
+        try:
+            self.conn.execute(
+                "INSERT INTO products (sku, name, description, price, customizable, customization_options) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (sku, name, description, float(price), 1 if customizable else 0, customization_options or ""),
+            )
+            self.conn.commit()
+        except sqlite3.IntegrityError as e:
+            raise ValueError(f"Product SKU already exists: {sku}") from e
         product = self.get_product_by_sku(sku)
         if product is None:
             raise ValueError(f"Product insert failed for SKU: {sku}")
@@ -424,6 +429,14 @@ class ShopDB:
         row = self.conn.execute(sql, params).fetchone()
         return self.order_to_dict(row) if row else None
 
+    @staticmethod
+    def _normalize_order_status_filter(status: str) -> str:
+        """Treat empty / all / * / any as no status filter."""
+        value = (status or "").strip()
+        if value.lower() in ("", "all", "*", "any"):
+            return ""
+        return value
+
     def list_orders(
         self,
         *,
@@ -437,9 +450,10 @@ class ShopDB:
         if user_id is not None:
             clauses.append("o.user_id = ?")
             params.append(user_id)
-        if status.strip():
+        status_filter = self._normalize_order_status_filter(status)
+        if status_filter:
             clauses.append("o.status = ?")
-            params.append(status.strip())
+            params.append(status_filter)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         rows = self.conn.execute(
             "SELECT o.*, p.sku AS product_sku, p.name AS product_name "

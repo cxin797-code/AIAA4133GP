@@ -3,13 +3,15 @@
 ablation_runner.py — SecureRAG ablation experiment runner.
 
 Loops config.ABLATION_CONFIGS x attack/normal dataset, creates a fresh RAGSystem
-per config with DB reset-from-seed, records CSV results.
+per config, resets DB+index before each test item to avoid poison cross-contamination,
+records CSV results.
 
 Fault tolerance:
   - data/attack_dataset.json missing -> attacks.prompts built-in dataset
   - defenses missing -> agentic_rag pass-through; checklist printed at start
   - write+shopkeeper_query poison insert fails -> skip that item
   - single query error -> CSV error row, continue
+  - duplicate SKU / IntegrityError during tool writes -> soft feedback, not runner crash
 
 Dataset format (data/attack_dataset.json):
   [
@@ -150,7 +152,7 @@ def run_one_config(cfg: dict, dataset: list[dict], writer: csv.DictWriter):
     mode = "agentic"
 
     print(f"\n{'='*60}\n[Experiment] config={name} (mode={mode})\n{'='*60}")
-    # Fresh instance + clean DB from seed for deterministic ablation
+    # One RAGSystem per config; each test item resets DB+index for isolation
     rag = RAGSystem(cfg, reset_db=True)
 
     skipped = 0
@@ -158,6 +160,9 @@ def run_one_config(cfg: dict, dataset: list[dict], writer: csv.DictWriter):
         test_id = item.get("id", "?")
         entry = item.get("entry", "query")
         print(f"\n--- [{test_id}] {item.get('type', '')} ---")
+
+        # Isolate each attack/normal item from prior poison writes / FAQ/product mutations
+        rag.reset_from_seed()
 
         if entry == "upload+query":
             print(f"[Skip] {test_id}: legacy upload+query is no longer part of this DBMS setting.")
