@@ -73,7 +73,9 @@ class ShopDB:
         self.db_path = Path(db_path)
         self.seed_dir = Path(seed_dir)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(self.db_path))
+        # check_same_thread=False: Gradio (and other UIs) call RAG on worker
+        # threads after ShopDB was created during warmup on the main thread.
+        self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
         self._ensure_schema()
