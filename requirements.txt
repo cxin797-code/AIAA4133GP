@@ -1,0 +1,6 @@
+ollama
+chromadb
+sentence-transformers
+transformers
+gradio>=4.0
+accelerate

@@ -34,7 +34,6 @@ Run: python agentic_rag.py
 import os
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
-OLLAMA_AVAILABLE = True
 import json
 import re
 import time
@@ -42,20 +41,20 @@ import datetime
 import importlib
 import sqlite3
 from pathlib import Path
-try:
-    import ollama
-except Exception:
-    from transformers import AutoTokenizer, AutoModelForCausalLM
-    OLLAMA_AVAILABLE = False
 import chromadb
 from sentence_transformers import SentenceTransformer
 
 from shop_db import ShopDB, DB_PATH
 
 # ========== System config ==========
-LLM_MODEL = "qwen2.5:7b"
-LLM_MODEL_LOCAL = "/home/user/.cache/modelscope/models/qwen--Qwen2.5-7B-Instruct/snapshots/master"
-LLM_MODEL_HF = "qwen/Qwen2.5-7B-Instruct"
+# Backend: auto (prefer Ollama), ollama, or hf / huggingface / transformers
+LLM_BACKEND = os.environ.get("SECURE_RAG_BACKEND", "auto").strip().lower()
+LLM_MODEL = os.environ.get("SECURE_RAG_OLLAMA_MODEL", "qwen2.5:7b")
+LLM_MODEL_LOCAL = os.environ.get(
+    "SECURE_RAG_LOCAL_MODEL",
+    "/home/user/.cache/modelscope/models/qwen--Qwen2.5-7B-Instruct/snapshots/master",
+)
+LLM_MODEL_HF = os.environ.get("SECURE_RAG_HF_MODEL", "qwen/Qwen2.5-7B-Instruct")
 EMBED_MODEL = "all-MiniLM-L6-v2"
 TOP_K = 6
 MAX_ROUNDS = 6  # max tool rounds before forcing an answer
@@ -63,11 +62,40 @@ LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / "pipeline_log.jsonl"
 
+ollama = None
+tokenizer = None
+model = None
+OLLAMA_AVAILABLE = False
+
+
+def _want_hf() -> bool:
+    return LLM_BACKEND in ("hf", "huggingface", "transformers")
+
+
+def _want_ollama() -> bool:
+    return LLM_BACKEND in ("ollama", "auto")
+
+
+if _want_ollama() and not _want_hf():
+    try:
+        import ollama as _ollama
+        ollama = _ollama
+        OLLAMA_AVAILABLE = True
+    except Exception:
+        OLLAMA_AVAILABLE = False
+
 if not OLLAMA_AVAILABLE:
-    tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_LOCAL, local_files_only=True)
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+
+    _hf_source = LLM_MODEL_LOCAL if Path(LLM_MODEL_LOCAL).exists() else LLM_MODEL_HF
+    _local_only = Path(LLM_MODEL_LOCAL).exists() and _hf_source == LLM_MODEL_LOCAL
+    print(f"[LLM] Loading Hugging Face model from {_hf_source} (local_files_only={_local_only})")
+    tokenizer = AutoTokenizer.from_pretrained(_hf_source, local_files_only=_local_only)
     model = AutoModelForCausalLM.from_pretrained(
-        LLM_MODEL_LOCAL, local_files_only=True, device_map="auto"
+        _hf_source, local_files_only=_local_only, device_map="auto"
     )
+else:
+    print(f"[LLM] Using Ollama model {LLM_MODEL}")
 
 
 def hf_pipeline(messages):
@@ -85,6 +113,13 @@ def _llm_chat(messages) -> str:
         response = ollama.chat(model=LLM_MODEL, messages=messages)
         return response["message"]["content"]
     return hf_pipeline(messages)
+
+
+def llm_backend_name() -> str:
+    if OLLAMA_AVAILABLE:
+        return f"ollama:{LLM_MODEL}"
+    source = LLM_MODEL_LOCAL if Path(LLM_MODEL_LOCAL).exists() else LLM_MODEL_HF
+    return f"hf:{source}"
 
 
 # ============================================================
@@ -223,7 +258,7 @@ class RAGSystem:
         self.last_trace: dict = {}
 
         print("[System] Loading embedding model ...")
-        self.embedder = SentenceTransformer(EMBED_MODEL)
+        self.embedder = SentenceTransformer(EMBED_MODEL, local_files_only=True)
         self.chroma = chromadb.Client()
         self.collection = self.chroma.get_or_create_collection("docs")
 

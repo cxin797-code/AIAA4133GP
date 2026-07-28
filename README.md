@@ -3,13 +3,32 @@
 ## 1. Install Dependencies
 
 ```powershell
-pip install ollama chromadb sentence-transformers transformers
+pip install ollama chromadb sentence-transformers transformers gradio
 ```
 
-If using Ollama, make sure the model is available:
+### LLM backend
+
+Default is `auto` (Ollama if installed, otherwise Hugging Face / Transformers).
+
+Force Hugging Face (recommended on SSH GPU hosts):
+
+```powershell
+$env:SECURE_RAG_BACKEND="hf"
+$env:SECURE_RAG_HF_MODEL="qwen/Qwen2.5-7B-Instruct"   # optional
+```
+
+```bash
+export SECURE_RAG_BACKEND=hf
+export SECURE_RAG_HF_MODEL=qwen/Qwen2.5-7B-Instruct   # optional
+# optional local snapshot path:
+# export SECURE_RAG_LOCAL_MODEL=/path/to/Qwen2.5-7B-Instruct
+```
+
+If using Ollama instead:
 
 ```powershell
 ollama pull qwen2.5:7b
+$env:SECURE_RAG_BACKEND="ollama"
 ```
 
 ## 2. Initialize The Database
@@ -103,4 +122,28 @@ Outputs:
 ```text
 results\failed_attack_trace_*.jsonl
 results\failed_attack_trace_*.md
+```
+
+## 8. Visual Attack Pipeline (Gradio)
+
+Interactive demo: pick an attack + defense config, then watch poison notes → defenses → tool rounds → privileged writes.
+
+On the SSH host:
+
+```powershell
+$env:SECURE_RAG_BACKEND="hf"
+python demo_pipeline.py
+```
+
+From your laptop, forward the port and open the UI:
+
+```bash
+ssh -L 7860:localhost:7860 user@remote-host
+# then open http://127.0.0.1:7860
+```
+
+Optional temporary public link:
+
+```powershell
+python demo_pipeline.py --share
 ```
